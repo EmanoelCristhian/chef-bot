@@ -1,0 +1,185 @@
+# SPEC.md — MVP: Bot de Contagem de Carne (Bom Beef, loja 0032)
+
+> Spec técnica derivada de `plano_projeto_bot_rotinas.md`. Serve de referência para implementação via Claude Code.
+> Status: rascunho v1 — contém decisões assumidas que precisam de validação do humano (marcadas com ⚠️).
+
+---
+
+## 1. Objetivo do MVP (Milestone 1)
+
+Automatizar de ponta a ponta o fluxo de contagem de carne que hoje é manual (WhatsApp + planilha), para a categoria **Burgers** apenas:
+
+1. Colaborador envia a contagem via Telegram, em texto livre, no formato que já usa hoje (ex.: `742 G / 689 F / 380 W / 9 PCT CHICKEN`).
+2. Sistema interpreta o texto (via LLM), estrutura em JSON e **confirma com o colaborador antes de prosseguir** (ver decisão D1).
+3. Sistema calcula o valor esperado: `Esperado = Recebimento + Contagem Anterior − Vendas − Desperdício`.
+4. Sistema compara contagem informada vs. esperado, **sem revelar o valor esperado ao colaborador** (contagem às cegas).
+5. Se bater: bot responde confirmando "tudo certo", sem alarme.
+6. Se não bater: bot alerta o grupo (`@all`) e monitora reconhecimento (ver decisão D2).
+
+## 2. Fora de escopo (não implementar nesta fase)
+
+- Motor de sugestão de pedido de compra (aba "Wessel" da planilha).
+- Categorias além de Burgers (Queijos, Molhos, Batata, Flavors House) — schema deve suportar, mas não implementar fluxo para elas.
+- Dashboard executivo / KPIs em tempo real.
+- Integração oficial via API do 3SCheckout — usar entrada manual de dados de venda (interface simples, a definir).
+- Terraform / infraestrutura multi-loja.
+- Demais rotinas da Ficha de Rotina Operacional (abertura, limpeza, temperatura, validade).
+
+## 3. Stack e arquitetura
+
+- **Runtime:** Node.js + TypeScript (strict mode).
+- **Bot:** Telegraf (lib já usada pelo Emanoel).
+- **Validação de entrada:** Zod para todos os payloads estruturados.
+- **Persistência:** banco relacional (⚠️ D3 — a definir: Postgres é a recomendação padrão para esse volume de dados e relações; confirmar com o humano se há preferência).
+- **Deploy:** Docker + docker-compose, portável (Railway/Vercel/etc.). Sem Terraform nesta fase.
+- **Segredos:** variáveis de ambiente (`.env`, nunca commitado — incluir no `.gitignore`).
+- **Interpretação de texto livre:** chamada a um modelo de linguagem (Claude via API) que recebe o texto do colaborador e retorna JSON estruturado, validado por um schema Zod antes de seguir para comparação.
+
+## 4. Modelo de domínio
+
+### 4.1 Entidade `Loja`
+⚠️ **D4 (assumido):** incluir esta entidade desde o MVP, mesmo operando com uma loja só, para não exigir migração de schema quando o produto virar SaaS multi-franquia.
+
+```
+Loja {
+  id: string (uuid)
+  nome: string           // ex: "Bom Beef 0032"
+  telegram_group_id: string
+  ativa: boolean
+}
+```
+
+### 4.2 Entidade `Insumo`
+```
+Insumo {
+  id: string (uuid)
+  loja_id: string (FK -> Loja)
+  categoria: enum ["burger", "queijo", "molho", "batata", "flavors_house"]  // MVP só usa "burger"
+  nome: string             // ex: "Burger 90g", "Chicken", "Vegetariano"
+  unidade: string           // ex: "unidade", "pacote", "kg"
+  quantidade_padrao_por_pacote: number | null   // null quando variável (ex: Chicken, Vegetariano)
+  ativo: boolean
+}
+```
+
+### 4.3 Entidade `Rotina`
+Modelagem genérica pensada para suportar os 5 tipos de verificação identificados no plano, mesmo que o MVP só implemente o tipo "numérica com valor esperado".
+
+```
+Rotina {
+  id: string (uuid)
+  loja_id: string (FK -> Loja)
+  nome: string                         // ex: "Contagem de Carne"
+  tipo_verificacao: enum ["numerica_esperada", "binaria", "faixa_valor", "validade", "foto_evidencia"]
+  frequencia: enum ["diaria", "a_cada_n_dias", "semanal", "mensal"]
+  criticidade: enum ["baixa", "media", "alta"]
+  ativa: boolean
+}
+```
+
+### 4.4 Entidade `Contagem`
+```
+Contagem {
+  id: string (uuid)
+  rotina_id: string (FK -> Rotina)
+  insumo_id: string (FK -> Insumo)
+  colaborador_telegram_id: string
+  texto_bruto: string                  // mensagem original, sem alteração
+  valor_informado: number
+  quantidade_real_informada: number | null   // ⚠️ D5 — override pontual quando o pacote tem qtd variável
+  valor_esperado: number                // calculado, nunca exposto ao colaborador
+  bateu: boolean
+  confirmado_pelo_colaborador: boolean  // ver D1 — fluxo de confirmação do parse
+  criado_em: datetime
+}
+```
+
+### 4.5 Entidade `Alerta`
+```
+Alerta {
+  id: string (uuid)
+  contagem_id: string (FK -> Contagem)
+  enviado_em: datetime
+  reconhecido: boolean                 // ver D2 — fluxo de escalonamento
+  reconhecido_por: string | null
+  reconhecido_em: datetime | null
+  escalonado: boolean
+  escalonado_para: string | null
+}
+```
+
+### 4.6 Entidade `HistoricoMovimento` (Recebimento / Venda / Desperdício)
+Necessária para calcular `valor_esperado`. Substitui as abas "Histórico de Saída" da planilha.
+
+```
+HistoricoMovimento {
+  id: string (uuid)
+  insumo_id: string (FK -> Insumo)
+  tipo: enum ["recebimento", "venda", "desperdicio"]
+  quantidade: number
+  origem: enum ["manual", "3scheckout_api"]   // manual no MVP; api reservado para Plano A futuro
+  registrado_em: datetime
+}
+```
+
+## 5. Decisões assumidas — precisam de confirmação do humano
+
+| # | Decisão | Assumido para o MVP | Alternativa se rejeitado |
+|---|---|---|---|
+| D1 | Parse via LLM do texto livre precisa de confirmação explícita do colaborador ("Entendi: 742 G, 689 F... Confirma?") antes de rodar a comparação, para evitar erro silencioso na feature mais crítica. | Bot sempre confirma antes de comparar. | Comparar direto sem confirmação (mais rápido, mais arriscado). |
+| D2 | Alerta ao grupo tem um estado de reconhecimento; se ninguém reagir em N minutos (sugestão: 15 min), escala via DM para um responsável designado. | Implementar campo `reconhecido` + escalonamento simples por timeout. | Alerta único sem acompanhamento (mais simples, risco de virar ruído ignorado). |
+| D3 | Banco de dados relacional (Postgres). | Postgres via Docker. | SQLite para MVP ainda mais simples (não recomendado se a visão é multi-loja). |
+| D4 | Entidade `Loja` existe desde o MVP, mesmo com uma loja só. | Incluir desde já (custo baixo agora, evita migração dolorosa depois). | Omitir e adicionar quando houver 2ª loja. |
+| D5 | Pacotes de quantidade variável (Chicken, Vegetariano): colaborador informa a quantidade real ao abrir o pacote; isso vale **só para aquela contagem**, não altera o padrão do Insumo. | Campo `quantidade_real_informada` pontual. | Quantidade real vira o novo padrão automaticamente (mais simples, mas perigoso se for erro de digitação). |
+
+**Antes de começar a implementação, o humano deve revisar esta tabela e marcar cada linha como ✅ confirmado ou ✏️ ajustar.**
+
+## 6. Regras de negócio centrais
+
+1. `valor_esperado = recebimento + contagem_anterior − vendas − desperdicio`, calculado por Insumo, com base nos registros de `HistoricoMovimento` desde a última contagem.
+2. O `valor_esperado` nunca é enviado ao colaborador em nenhuma mensagem do bot.
+3. Toda contagem gera um registro imutável (`texto_bruto` preservado) — nunca sobrescrever, sempre criar novo registro.
+4. Bot só processa mensagens de colaboradores autorizados no grupo configurado (⚠️ definir lista de autorização — não estava no plano original, precisa de decisão).
+
+## 7. Arquivos e módulos principais (sugestão de estrutura)
+
+```
+src/
+  bot/
+    telegram.ts          // setup do Telegraf, handlers de mensagem
+    parse.ts             // chamada ao LLM + validação Zod do JSON estruturado
+    confirmacao.ts        // fluxo de confirmação (D1)
+  dominio/
+    rotina.ts
+    insumo.ts
+    contagem.ts
+    alerta.ts
+  calculo/
+    esperado.ts           // fórmula de valor esperado
+  persistencia/
+    db.ts                 // conexão Postgres
+    migrations/           // scripts de migração do schema
+    seed-historico.ts      // migração dos dados históricos da planilha
+  alertas/
+    escalonamento.ts       // timeout + escalonamento (D2)
+docs/
+  ficha-rotina-operacional.md   // referência (se disponível)
+CLAUDE.md
+SPEC.md
+```
+
+## 8. Critério de verificação end-to-end (definição de "pronto")
+
+O MVP está pronto quando, em ambiente de teste (grupo de Telegram de staging):
+
+1. Um colaborador de teste envia uma contagem no formato real (ex.: `742 G / 689 F / 380 W`).
+2. O bot responde com o parse estruturado e aguarda confirmação.
+3. Após confirmação, o sistema calcula o esperado e:
+   - Se os valores de teste foram configurados para bater → bot responde "tudo certo" (sem revelar números).
+   - Se os valores foram configurados para não bater → bot posta alerta no grupo e, após o timeout configurado sem reconhecimento, dispara escalonamento (verificável nos logs/DB).
+4. O registro da contagem existe no banco com `texto_bruto` preservado e `valor_esperado` calculado corretamente (conferir manualmente contra o cálculo da planilha atual para os mesmos dados de entrada).
+5. Testes automatizados cobrem: cálculo do esperado (casos normais + pacote de quantidade variável), validação Zod do parse do LLM (casos válidos e malformados), e o fluxo de decisão bate/não-bate.
+
+## 9. Rollout sugerido (não bloqueante para o spec, mas recomendado)
+
+Rodar o novo cálculo em modo *shadow* (paralelo à planilha atual) por 1–2 semanas antes de desligar o processo manual, comparando os valores calculados pelos dois sistemas para os mesmos dados de entrada.

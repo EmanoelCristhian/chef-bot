@@ -1,0 +1,58 @@
+# CLAUDE.md — Bot de Rotinas Bom Beef
+
+Contexto de projeto. Leia também `@SPEC.md` (fonte da verdade para o MVP em andamento) antes de implementar qualquer feature.
+
+## O que é este projeto
+
+API + bot de Telegram que automatiza rotinas operacionais de uma hamburgueria (Bom Beef, loja 0032). MVP atual: contagem de carne (categoria Burgers). Arquitetura pensada como fundação genérica + módulos ("Lego") — não hardcode nada específico de "carne" fora da camada de dados.
+
+## Stack
+
+- Node.js + TypeScript (strict mode) — sem `any` sem justificativa em comentário.
+- Telegraf para o bot de Telegram.
+- Zod para validar TODO payload estruturado, especialmente o JSON retornado pelo parse via LLM.
+- Postgres (via Docker) para persistência.
+- Docker + docker-compose para deploy local e produção.
+
+## Comandos
+
+```bash
+npm run dev              # roda o bot localmente com hot reload
+npm test                 # roda a suíte de testes
+npm run migrate          # aplica migrações do banco
+docker compose up -d     # sobe Postgres + serviço em containers
+```
+
+(Ajustar este bloco assim que os scripts reais existirem no `package.json` — este é um ponto de partida, não confirmado ainda.)
+
+## Regras de negócio inegociáveis
+
+- **Contagem às cegas:** o `valor_esperado` NUNCA deve aparecer em nenhuma mensagem enviada ao colaborador via Telegram. Se uma feature nova expõe esse valor de qualquer forma (log visível ao usuário, mensagem de erro, etc.), é bug de segurança, não só de UX.
+- **Confirmação antes de comparar:** toda contagem parseada via LLM deve ser confirmada explicitamente pelo colaborador antes do sistema rodar a comparação. Nunca comparar direto no primeiro parse.
+- **Imutabilidade da contagem:** `texto_bruto` da mensagem original nunca é sobrescrito. Toda contagem gera um novo registro.
+- **Fórmula do esperado é fixa:** `Esperado = Recebimento + Contagem Anterior − Vendas − Desperdício`. Já validada em produção via planilha/script — não alterar sem validação explícita do humano.
+
+## Convenções
+
+- ES modules, imports absolutos a partir de `src/`.
+- Toda entrada externa (Telegram, LLM, API futura do 3SCheckout) passa por um schema Zod antes de tocar em lógica de negócio.
+- Testes unitários obrigatórios para: cálculo do esperado, validação de parse (casos válidos e malformados), decisão bate/não-bate.
+- Nomenclatura de branch: `feature/<nome-curto>`, `fix/<nome-curto>`.
+- Commits descritivos, no formato `tipo: descrição` (ex.: `feat: parse de contagem via LLM`).
+
+## Segredos
+
+Nunca commitar tokens do bot, chaves de API ou credenciais de banco. Tudo via `.env` (já no `.gitignore`). Se encontrar um segredo hardcoded em qualquer arquivo, pare e avise antes de continuar.
+
+## Decisões em aberto (ver SPEC.md seção 5)
+
+Várias decisões de arquitetura ainda estão marcadas como assumidas, não confirmadas: fluxo de confirmação do parse, escalonamento de alerta, escolha de Postgres, entidade `Loja` desde o MVP, tratamento de pacotes de quantidade variável. Não assumir que estão fechadas — confirmar com o humano antes de implementar a parte correspondente se houver qualquer dúvida.
+
+## Fora de escopo do MVP (não implementar sem pedido explícito)
+
+- Motor de sugestão de pedido de compra.
+- Categorias além de Burgers.
+- Dashboard/KPIs.
+- Integração oficial com API do 3SCheckout.
+- Terraform / infra multi-loja.
+- Outras rotinas da Ficha de Rotina Operacional (abertura, limpeza, temperatura, validade).
