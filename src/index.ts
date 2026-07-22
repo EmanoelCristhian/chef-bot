@@ -8,6 +8,8 @@ import { createBot } from "src/bot/telegram.js";
 import { registerMovementHandler } from "src/bot/handlers/movement.js";
 import { registerConfirmationHandler } from "src/bot/handlers/confirmation.js";
 import { registerCountHandler } from "src/bot/handlers/count.js";
+import { registerIngestXmlCommand } from "src/bot/handlers/ingestXml.js";
+import { createDriveFilesAndContentApi } from "src/salesXml/googleDriveClient.js";
 import * as storeRepo from "src/persistence/repositories/storeRepo.js";
 
 async function main() {
@@ -20,6 +22,8 @@ async function main() {
   const llmParser: LLMParser = env.GEMINI_API_KEY
     ? createFallbackParser(claudeParser, createGeminiParser(createGeminiClient(env.GEMINI_API_KEY)))
     : claudeParser;
+
+  const driveFiles = createDriveFilesAndContentApi(env.GOOGLE_SERVICE_ACCOUNT_KEY);
 
   // D9: authorization is by Telegram group (store.telegramGroupId), not an individual
   // allowlist — the active store must be known before the bot (and its middleware) exist.
@@ -34,6 +38,11 @@ async function main() {
   registerMovementHandler(bot, db);
   registerConfirmationHandler(bot, db);
   registerCountHandler(bot, { llmParser });
+  registerIngestXmlCommand(bot, db, {
+    adminTelegramIds: env.ADMIN_TELEGRAM_IDS,
+    driveFiles,
+    rootFolderId: env.GOOGLE_DRIVE_ROOT_FOLDER_ID,
+  });
 
   const stop = (signal: string) => {
     bot.stop(signal);

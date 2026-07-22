@@ -7,14 +7,23 @@ export function createClaudeClient(apiKey: string): Anthropic {
   return new Anthropic({ apiKey });
 }
 
-const SYSTEM_PROMPT = `You interpret free-text stock count messages from an employee at a burger restaurant
+// B3 bot integration: today's date is interpolated in so the model can resolve "hoje"
+// (or no date mentioned at all, the common case) to an actual YYYY-MM-DD — the model
+// has no other way to know what day it is right now.
+function buildSystemPrompt(todayIso: string): string {
+  return `You interpret free-text stock count messages from an employee at a burger restaurant
 (Burgers category), sent via Telegram. The format varies, but it's usually a list of
 "quantity + supply code" separated by slashes or commas, e.g.: "742 G / 689 F / 380 W / 9 PCT CHICKEN".
 
 Extract each item from the message, preserving the supply code/name exactly as it appears in the text
 (do not translate or normalize it). If the employee explicitly mentions the actual quantity of a
 variable-quantity package (e.g., "opened the chicken package and it had 8.5"), fill in actualQuantity
-for that item; otherwise leave it null. Do not invent items that aren't in the text.`;
+for that item; otherwise leave it null. Do not invent items that aren't in the text.
+
+Today's date is ${todayIso} (YYYY-MM-DD). The message may mention which day the count is for (e.g.,
+"contagem de ontem", "22/07"); resolve it to YYYY-MM-DD format. If no date is mentioned, use today's
+date — most counts are for the current day.`;
+}
 
 const PARSE_TOOL = {
   name: "record_count_items",
@@ -22,6 +31,10 @@ const PARSE_TOOL = {
   input_schema: {
     type: "object",
     properties: {
+      date: {
+        type: "string",
+        description: "The date this count is for, in YYYY-MM-DD format.",
+      },
       items: {
         type: "array",
         items: {
@@ -45,15 +58,16 @@ const PARSE_TOOL = {
         },
       },
     },
-    required: ["items"],
+    required: ["date", "items"],
   },
 } as const;
 
 export async function requestStructuredParse(client: Anthropic, rawText: string): Promise<unknown> {
+  const todayIso = new Date().toISOString().slice(0, 10);
   const response = await client.messages.create({
     model: MODEL,
     max_tokens: 1024,
-    system: SYSTEM_PROMPT,
+    system: buildSystemPrompt(todayIso),
     tools: [PARSE_TOOL],
     tool_choice: { type: "tool", name: PARSE_TOOL.name },
     messages: [{ role: "user", content: rawText }],

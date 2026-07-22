@@ -5,14 +5,22 @@ describe("createGeminiParser", () => {
   it("returns the function call args as the parsed data, tagged with provider 'gemini'", async () => {
     const models: GeminiModelsApi = {
       generateContent: vi.fn().mockResolvedValue({
-        functionCalls: [{ name: "record_count_items", args: { items: [{ supply: "G", quantity: 742 }] } }],
+        functionCalls: [
+          {
+            name: "record_count_items",
+            args: { date: "2026-07-22", items: [{ supply: "G", quantity: 742 }] },
+          },
+        ],
       }),
     };
 
     const parser = createGeminiParser(models);
     const result = await parser.parse("742 G");
 
-    expect(result).toEqual({ data: { items: [{ supply: "G", quantity: 742 }] }, provider: "gemini" });
+    expect(result).toEqual({
+      data: { date: "2026-07-22", items: [{ supply: "G", quantity: 742 }] },
+      provider: "gemini",
+    });
   });
 
   it("forces the tool call via functionCallingConfig mode ANY", async () => {

@@ -13,14 +13,22 @@ const MODEL = "gemini-2.5-flash";
 // Same instructions given to Claude (claudeClient.ts) — kept in sync manually, not
 // shared as a constant, so each provider's prompt can be tuned independently if one
 // of the two starts misparsing something the other handles fine.
-const SYSTEM_PROMPT = `You interpret free-text stock count messages from an employee at a burger restaurant
+// B3: today's date is interpolated in so the model can resolve "hoje" (or no date
+// mentioned) to YYYY-MM-DD — required by countParseSchema.
+function buildSystemPrompt(todayIso: string): string {
+  return `You interpret free-text stock count messages from an employee at a burger restaurant
 (Burgers category), sent via Telegram. The format varies, but it's usually a list of
 "quantity + supply code" separated by slashes or commas, e.g.: "742 G / 689 F / 380 W / 9 PCT CHICKEN".
 
 Extract each item from the message, preserving the supply code/name exactly as it appears in the text
 (do not translate or normalize it). If the employee explicitly mentions the actual quantity of a
 variable-quantity package (e.g., "opened the chicken package and it had 8.5"), fill in actualQuantity
-for that item; otherwise leave it out. Do not invent items that aren't in the text.`;
+for that item; otherwise leave it out. Do not invent items that aren't in the text.
+
+Today's date is ${todayIso} (YYYY-MM-DD). The message may mention which day the count is for (e.g.,
+"contagem de ontem", "22/07"); resolve it to YYYY-MM-DD format. If no date is mentioned, use today's
+date — most counts are for the current day.`;
+}
 
 const PARSE_FUNCTION_NAME = "record_count_items";
 
@@ -30,6 +38,10 @@ const PARSE_FUNCTION_DECLARATION: FunctionDeclaration = {
   parameters: {
     type: Type.OBJECT,
     properties: {
+      date: {
+        type: Type.STRING,
+        description: "The date this count is for, in YYYY-MM-DD format.",
+      },
       items: {
         type: Type.ARRAY,
         items: {
@@ -53,7 +65,7 @@ const PARSE_FUNCTION_DECLARATION: FunctionDeclaration = {
         },
       },
     },
-    required: ["items"],
+    required: ["date", "items"],
   },
 };
 
@@ -71,11 +83,12 @@ export function createGeminiClient(apiKey: string): GeminiModelsApi {
 export function createGeminiParser(models: GeminiModelsApi): LLMParser {
   return {
     async parse(rawText: string) {
+      const todayIso = new Date().toISOString().slice(0, 10);
       const response = await models.generateContent({
         model: MODEL,
         contents: rawText,
         config: {
-          systemInstruction: SYSTEM_PROMPT,
+          systemInstruction: buildSystemPrompt(todayIso),
           tools: [{ functionDeclarations: [PARSE_FUNCTION_DECLARATION] }],
           toolConfig: {
             functionCallingConfig: {

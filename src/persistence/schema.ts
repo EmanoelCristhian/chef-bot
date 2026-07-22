@@ -1,6 +1,9 @@
 import {
   boolean,
+  date,
   doublePrecision,
+  integer,
+  jsonb,
   pgEnum,
   pgTable,
   text,
@@ -58,6 +61,11 @@ export const supply = pgTable("supply", {
   name: text("name").notNull(),
   unit: text("unit").notNull(),
   defaultPackageQuantity: quantity("default_package_quantity"),
+  // B5: fixed master data for converting a receiving note's boxes (NFe mod 55, `uCom:
+  // "CX"`) into the same units used elsewhere (F=54, G=36, W=30, confirmed 22/07) — not
+  // derived from free-text product parsing, which is fragile. Null for supplies that
+  // aren't received by the box (e.g. Chicken/Vegetariano, D5 variable-quantity packages).
+  unitsPerBox: integer("units_per_box"),
   active: boolean("active").notNull().default(true),
 });
 
@@ -133,3 +141,46 @@ export const processedSalesFile = pgTable(
   },
   (table) => [unique().on(table.storeId, table.driveFileId)],
 );
+
+// B3 bot integration: distinct from processedSalesFile (which tracks individual files
+// by id) — this tracks "was the daily ingestion command run at all for this date",
+// including a day where it ran and found zero files (store closed, no sales yet). That
+// distinction matters: a Count can only be compared once we know the day's ingestion
+// was actually attempted, not just inferred from an empty processedSalesFile result.
+export const dailyIngestionRun = pgTable(
+  "daily_ingestion_run",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    storeId: uuid("store_id")
+      .notNull()
+      .references(() => store.id),
+    date: date("date").notNull(),
+    ranAt: timestamp("ran_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [unique().on(table.storeId, table.date)],
+);
+
+// B3 bot integration: a confirmed count whose date's XML hasn't been ingested yet
+// (dailyIngestionRun has no row for it) is parked here instead of becoming a Count
+// immediately — Count stays immutable (see comment on countRepo.insert), so a count
+// that isn't ready to be compared yet must not exist as a Count row at all. Resumed
+// automatically by ingestionResume.ts once /ingest-xml runs for that date.
+export const awaitingIngestionCount = pgTable("awaiting_ingestion_count", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  storeId: uuid("store_id")
+    .notNull()
+    .references(() => store.id),
+  routineId: uuid("routine_id")
+    .notNull()
+    .references(() => routine.id),
+  collaboratorTelegramId: text("collaborator_telegram_id").notNull(),
+  chatId: text("chat_id").notNull(),
+  rawText: text("raw_text").notNull(),
+  date: date("date").notNull(),
+  // Mirrors bot/parse.schema.ts's CountItem shape — kept as an inline type instead of
+  // importing it, so the persistence layer doesn't depend on the bot layer.
+  items: jsonb("items").$type<{ supply: string; quantity: number; actualQuantity: number | null }[]>().notNull(),
+  // C5: preserved so resume after /ingest-xml still records which LLM produced the parse.
+  llmUsed: llmProviderEnum("llm_used").notNull().default("claude"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
