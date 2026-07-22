@@ -69,6 +69,37 @@ describe("findDailyNfceFiles", () => {
     ]);
   });
 
+  it("falls back to unpadded month/day ('7' instead of '07') when the padded folder isn't found", async () => {
+    const drive = fakeDriveApi({
+      [ROOT]: [{ id: "year-2026", name: "2026", type: "folder" }],
+      "year-2026": [{ id: "month-7", name: "7", type: "folder" }], // unpadded, no "07"
+      "month-7": [{ id: "day-18", name: "18", type: "folder" }],
+      "day-18": [{ id: "file-1", name: "36177-1-4645600.xml", type: "file" }],
+    });
+
+    const result = await findDailyNfceFiles(drive, ROOT, date);
+
+    expect(result).toEqual([{ id: "file-1", name: "36177-1-4645600.xml" }]);
+  });
+
+  it("prefers the padded folder ('07') over unpadded when both exist", async () => {
+    const drive = fakeDriveApi({
+      [ROOT]: [{ id: "year-2026", name: "2026", type: "folder" }],
+      "year-2026": [
+        { id: "month-07", name: "07", type: "folder" },
+        { id: "month-7", name: "7", type: "folder" },
+      ],
+      "month-07": [{ id: "day-18", name: "18", type: "folder" }],
+      "month-7": [{ id: "wrong-day-18", name: "18", type: "folder" }],
+      "day-18": [{ id: "file-1", name: "correct.xml", type: "file" }],
+      "wrong-day-18": [{ id: "file-2", name: "wrong.xml", type: "file" }],
+    });
+
+    const result = await findDailyNfceFiles(drive, ROOT, date);
+
+    expect(result).toEqual([{ id: "file-1", name: "correct.xml" }]);
+  });
+
   it("returns an empty array when the day folder doesn't exist yet", async () => {
     const drive = fakeDriveApi({
       [ROOT]: [{ id: "year-2026", name: "2026", type: "folder" }],

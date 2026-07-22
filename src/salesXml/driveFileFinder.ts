@@ -29,6 +29,25 @@ async function findChildFolderId(files: DriveFilesApi, parentFolderId: string, n
   return found?.id ?? null;
 }
 
+// D11 addendum (2026-07-21): zero-padding ("07") is confirmed correct, but as a
+// robustness measure, fall back to the unpadded form ("7") before giving up if the
+// padded name isn't found — not a real ambiguity anymore, just defensive.
+async function findChildFolderIdWithFallback(
+  files: DriveFilesApi,
+  parentFolderId: string,
+  primary: string,
+  fallback: string,
+): Promise<string | null> {
+  const found = await findChildFolderId(files, parentFolderId, primary);
+  if (found) {
+    return found;
+  }
+  if (fallback === primary) {
+    return null;
+  }
+  return findChildFolderId(files, parentFolderId, fallback);
+}
+
 /**
  * Locates the .xml files for a given date under the shared root folder, following the
  * corrected convention (DECISIONS.md, 2026-07-21): `chef-bot/<year>/<month>/<day>/*.xml`
@@ -41,9 +60,9 @@ async function findChildFolderId(files: DriveFilesApi, parentFolderId: string, n
  * per-store Drive folders later, that's a real design change (e.g. a `driveFolderId`
  * column on `store`), not something to stub in now.
  *
- * Month/day are assumed zero-padded (e.g. "07", not "7") — matches the local sample
- * folder layout seen in B0 (`.../2026/07/18/`), but this wasn't explicitly reconfirmed
- * for the corrected `chef-bot/...` convention. Flagged in TRILHA-ENTREGAVEIS.md.
+ * Month/day are zero-padded (e.g. "07", not "7") — confirmed by Emanoel (2026-07-21)
+ * against the real Drive folder. As a robustness measure (also requested), the
+ * unpadded form is tried as a fallback before giving up on a segment.
  *
  * Returns an empty array if any segment of the date path doesn't exist yet (e.g. the
  * day's folder hasn't been created) — that's not an error, just "no files yet". Deciding
@@ -52,12 +71,25 @@ async function findChildFolderId(files: DriveFilesApi, parentFolderId: string, n
  */
 export async function findDailyNfceFiles(files: DriveFilesApi, rootFolderId: string, date: Date): Promise<DriveFileRef[]> {
   const year = String(date.getFullYear());
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
+  const monthPadded = String(date.getMonth() + 1).padStart(2, "0");
+  const monthUnpadded = String(date.getMonth() + 1);
+  const dayPadded = String(date.getDate()).padStart(2, "0");
+  const dayUnpadded = String(date.getDate());
 
   let currentFolderId = rootFolderId;
-  for (const segment of [year, month, day]) {
-    const childFolderId = await findChildFolderId(files, currentFolderId, segment);
+
+  const yearFolderId = await findChildFolderId(files, currentFolderId, year);
+  if (!yearFolderId) {
+    return [];
+  }
+  currentFolderId = yearFolderId;
+
+  const segmentsWithFallback: [primary: string, fallback: string][] = [
+    [monthPadded, monthUnpadded],
+    [dayPadded, dayUnpadded],
+  ];
+  for (const [primary, fallback] of segmentsWithFallback) {
+    const childFolderId = await findChildFolderIdWithFallback(files, currentFolderId, primary, fallback);
     if (!childFolderId) {
       return [];
     }
