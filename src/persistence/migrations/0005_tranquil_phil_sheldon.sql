@@ -7,6 +7,7 @@ CREATE TABLE "awaiting_ingestion_count" (
 	"raw_text" text NOT NULL,
 	"date" date NOT NULL,
 	"items" jsonb NOT NULL,
+	"llm_used" "llm_provider" DEFAULT 'claude' NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
@@ -18,6 +19,7 @@ CREATE TABLE "daily_ingestion_run" (
 	CONSTRAINT "daily_ingestion_run_store_id_date_unique" UNIQUE("store_id","date")
 );
 --> statement-breakpoint
+ALTER TABLE "supply" ADD COLUMN "units_per_box" integer;--> statement-breakpoint
 ALTER TABLE "awaiting_ingestion_count" ADD CONSTRAINT "awaiting_ingestion_count_store_id_store_id_fk" FOREIGN KEY ("store_id") REFERENCES "public"."store"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "awaiting_ingestion_count" ADD CONSTRAINT "awaiting_ingestion_count_routine_id_routine_id_fk" FOREIGN KEY ("routine_id") REFERENCES "public"."routine"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "daily_ingestion_run" ADD CONSTRAINT "daily_ingestion_run_store_id_store_id_fk" FOREIGN KEY ("store_id") REFERENCES "public"."store"("id") ON DELETE no action ON UPDATE no action;

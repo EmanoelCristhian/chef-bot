@@ -21,6 +21,7 @@ async function newEntry(storeId: string, routineId: string, overrides: { date?: 
     rawText: "10 G",
     date: overrides.date ?? "2026-07-22",
     items: [{ supply: "G", quantity: 10, actualQuantity: null }],
+    llmUsed: "claude",
   });
 }
 

@@ -42,6 +42,7 @@ describe("resumeAwaitingCounts", () => {
       rawText: "10 G",
       date: "2026-07-22",
       items: [{ supply: "G", quantity: 10, actualQuantity: null }],
+      llmUsed: "claude",
     });
 
     const { bot, sendMessage } = fakeBot();
@@ -76,6 +77,7 @@ describe("resumeAwaitingCounts", () => {
       rawText: "10 G",
       date: "2026-07-21",
       items: [{ supply: "G", quantity: 10, actualQuantity: null }],
+      llmUsed: "claude",
     });
 
     const { bot, sendMessage } = fakeBot();

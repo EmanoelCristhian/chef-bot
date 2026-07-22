@@ -124,6 +124,7 @@ describe("registerIngestXmlCommand", () => {
       rawText: "10 G",
       date: "2026-07-18",
       items: [{ supply: "G", quantity: 10, actualQuantity: null }],
+      llmUsed: "claude",
     });
 
     const bot = createBot("fake-token", "555");

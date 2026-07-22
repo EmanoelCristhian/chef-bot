@@ -1,1 +1,0 @@
-ALTER TABLE "supply" ADD COLUMN "units_per_box" integer;

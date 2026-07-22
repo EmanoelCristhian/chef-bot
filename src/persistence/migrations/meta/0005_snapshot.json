@@ -1,6 +1,6 @@
 {
-  "id": "250901d4-f2b0-43d4-b7ea-f5ed424b5435",
-  "prevId": "e6e5fe2f-1bd9-456d-9e93-b35c85c46b40",
+  "id": "fc7d0186-55fb-4b3f-89a4-9afc552715ac",
+  "prevId": "76dbeb48-0386-4ad7-83c8-f4748c75c647",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -37,6 +37,110 @@
           "tableTo": "count",
           "columnsFrom": [
             "count_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.awaiting_ingestion_count": {
+      "name": "awaiting_ingestion_count",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "store_id": {
+          "name": "store_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "routine_id": {
+          "name": "routine_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "collaborator_telegram_id": {
+          "name": "collaborator_telegram_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "chat_id": {
+          "name": "chat_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "raw_text": {
+          "name": "raw_text",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "date": {
+          "name": "date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "items": {
+          "name": "items",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "llm_used": {
+          "name": "llm_used",
+          "type": "llm_provider",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'claude'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "awaiting_ingestion_count_store_id_store_id_fk": {
+          "name": "awaiting_ingestion_count_store_id_store_id_fk",
+          "tableFrom": "awaiting_ingestion_count",
+          "tableTo": "store",
+          "columnsFrom": [
+            "store_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "awaiting_ingestion_count_routine_id_routine_id_fk": {
+          "name": "awaiting_ingestion_count_routine_id_routine_id_fk",
+          "tableFrom": "awaiting_ingestion_count",
+          "tableTo": "routine",
+          "columnsFrom": [
+            "routine_id"
           ],
           "columnsTo": [
             "id"
@@ -117,6 +221,14 @@
           "notNull": true,
           "default": false
         },
+        "llm_used": {
+          "name": "llm_used",
+          "type": "llm_provider",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'claude'"
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -156,6 +268,68 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.daily_ingestion_run": {
+      "name": "daily_ingestion_run",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "store_id": {
+          "name": "store_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "date": {
+          "name": "date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ran_at": {
+          "name": "ran_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "daily_ingestion_run_store_id_store_id_fk": {
+          "name": "daily_ingestion_run_store_id_store_id_fk",
+          "tableFrom": "daily_ingestion_run",
+          "tableTo": "store",
+          "columnsFrom": [
+            "store_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "daily_ingestion_run_store_id_date_unique": {
+          "name": "daily_ingestion_run_store_id_date_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "store_id",
+            "date"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -451,6 +625,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "units_per_box": {
+          "name": "units_per_box",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
         "active": {
           "name": "active",
           "type": "boolean",
@@ -500,6 +680,14 @@
         "every_n_days",
         "weekly",
         "monthly"
+      ]
+    },
+    "public.llm_provider": {
+      "name": "llm_provider",
+      "schema": "public",
+      "values": [
+        "claude",
+        "gemini"
       ]
     },
     "public.movement_source": {

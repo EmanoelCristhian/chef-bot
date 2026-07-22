@@ -51,6 +51,7 @@ export function registerConfirmationHandler(bot: Telegraf<Context>, db: Db): voi
         rawText: pendingCount.rawText,
         date: pendingCount.parse.date,
         items: pendingCount.parse.items,
+        llmUsed: pendingCount.llmUsed,
       });
       await ctx.reply(
         `⏳ Ainda não recebi o XML de vendas de ${pendingCount.parse.date} — vou processar sua contagem automaticamente assim que um admin rodar a ingestão. Não precisa reenviar.`,
@@ -63,6 +64,7 @@ export function registerConfirmationHandler(bot: Telegraf<Context>, db: Db): voi
       routineId: routine.id,
       collaboratorTelegramId: pendingCount.collaboratorTelegramId,
       rawText: pendingCount.rawText,
+      llmUsed: pendingCount.llmUsed,
       items: pendingCount.parse.items,
     });
 

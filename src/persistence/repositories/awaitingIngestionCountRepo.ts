@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import type { Db } from "src/persistence/db.js";
 import type { CountItem } from "src/bot/parse.schema.js";
+import type { LlmProvider } from "src/domain/types.js";
 import { awaitingIngestionCount } from "src/persistence/schema.js";
 
 export interface NewAwaitingIngestionCount {
@@ -11,6 +12,7 @@ export interface NewAwaitingIngestionCount {
   rawText: string;
   date: string;
   items: CountItem[];
+  llmUsed: LlmProvider;
 }
 
 export async function insert(db: Db, data: NewAwaitingIngestionCount) {

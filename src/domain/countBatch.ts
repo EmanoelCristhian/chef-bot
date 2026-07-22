@@ -1,6 +1,7 @@
 import type { Context, Telegraf } from "telegraf";
 import type { Db } from "src/persistence/db.js";
 import type { CountItem } from "src/bot/parse.schema.js";
+import type { LlmProvider } from "src/domain/types.js";
 import { processCountItem } from "src/domain/count.js";
 import { postAlertToGroup } from "src/bot/handlers/alert.js";
 
@@ -25,6 +26,7 @@ export async function processConfirmedItems(
     routineId: string;
     collaboratorTelegramId: string;
     rawText: string;
+    llmUsed: LlmProvider;
     items: CountItem[];
   },
 ): Promise<CountBatchSummary> {
@@ -36,6 +38,7 @@ export async function processConfirmedItems(
       routineId: params.routineId,
       collaboratorTelegramId: params.collaboratorTelegramId,
       rawText: params.rawText,
+      llmUsed: params.llmUsed,
       item,
     });
 
