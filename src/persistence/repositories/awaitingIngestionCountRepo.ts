@@ -1,0 +1,33 @@
+import { and, eq } from "drizzle-orm";
+import type { Db } from "src/persistence/db.js";
+import type { CountItem } from "src/bot/parse.schema.js";
+import { awaitingIngestionCount } from "src/persistence/schema.js";
+
+export interface NewAwaitingIngestionCount {
+  storeId: string;
+  routineId: string;
+  collaboratorTelegramId: string;
+  chatId: string;
+  rawText: string;
+  date: string;
+  items: CountItem[];
+}
+
+export async function insert(db: Db, data: NewAwaitingIngestionCount) {
+  const [created] = await db.insert(awaitingIngestionCount).values(data).returning();
+  if (!created) {
+    throw new Error("Failed to insert awaiting-ingestion count.");
+  }
+  return created;
+}
+
+export async function listByStoreAndDate(db: Db, storeId: string, date: string) {
+  return db
+    .select()
+    .from(awaitingIngestionCount)
+    .where(and(eq(awaitingIngestionCount.storeId, storeId), eq(awaitingIngestionCount.date, date)));
+}
+
+export async function deleteById(db: Db, id: string): Promise<void> {
+  await db.delete(awaitingIngestionCount).where(eq(awaitingIngestionCount.id, id));
+}

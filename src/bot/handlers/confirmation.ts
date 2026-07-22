@@ -1,10 +1,11 @@
 import type { Context, Telegraf } from "telegraf";
 import type { Db } from "src/persistence/db.js";
 import { consumePending } from "src/bot/pendingCounts.js";
-import { processCountItem } from "src/domain/count.js";
-import { postAlertToGroup } from "src/bot/handlers/alert.js";
+import { processConfirmedItems, formatCountBatchReply } from "src/domain/countBatch.js";
 import * as storeRepo from "src/persistence/repositories/storeRepo.js";
 import * as routineRepo from "src/persistence/repositories/routineRepo.js";
+import * as dailyIngestionRunRepo from "src/persistence/repositories/dailyIngestionRunRepo.js";
+import * as awaitingIngestionCountRepo from "src/persistence/repositories/awaitingIngestionCountRepo.js";
 
 const COUNT_ROUTINE_NAME = "Contagem de Carne";
 
@@ -36,58 +37,36 @@ export function registerConfirmationHandler(bot: Telegraf<Context>, db: Db): voi
       return;
     }
 
-    const notFound: string[] = [];
-    const invalidQuantities: string[] = [];
-    const matched: string[] = [];
-    const notMatched: string[] = [];
-
-    for (const item of pendingCount.parse.items) {
-      const result = await processCountItem(db, {
+    // B3 bot integration: a count can only be compared once that day's XML has been
+    // ingested — otherwise "expected" would be missing that day's sales deductions.
+    // Park it instead of comparing against an incomplete picture; an admin running
+    // /ingest-xml later resumes it automatically (ingestionResume.ts).
+    const ingested = await dailyIngestionRunRepo.hasRunForDate(db, activeStore.id, pendingCount.parse.date);
+    if (!ingested) {
+      await awaitingIngestionCountRepo.insert(db, {
         storeId: activeStore.id,
         routineId: routine.id,
         collaboratorTelegramId: pendingCount.collaboratorTelegramId,
+        chatId: String(pendingCount.chatId),
         rawText: pendingCount.rawText,
-        item,
+        date: pendingCount.parse.date,
+        items: pendingCount.parse.items,
       });
-
-      if (!result.found) {
-        notFound.push(result.supplyTextOriginal);
-        continue;
-      }
-
-      const displayName = result.supplyName ?? result.supplyTextOriginal;
-
-      if (result.invalidQuantity) {
-        invalidQuantities.push(displayName);
-        continue;
-      }
-
-      if (result.matched) {
-        matched.push(displayName);
-      } else {
-        notMatched.push(displayName);
-        if (result.countId) {
-          await postAlertToGroup(bot, db, { countId: result.countId, supplyName: displayName });
-        }
-      }
+      await ctx.reply(
+        `⏳ Ainda não recebi o XML de vendas de ${pendingCount.parse.date} — vou processar sua contagem automaticamente assim que um admin rodar a ingestão. Não precisa reenviar.`,
+      );
+      return;
     }
 
-    // Blind count: the reply to the collaborator never mentions the expected value.
-    const replyParts: string[] = [];
-    if (matched.length > 0) {
-      replyParts.push(`✅ Tudo certo: ${matched.join(", ")}.`);
-    }
-    if (notMatched.length > 0) {
-      replyParts.push(`🚨 Alerta enviado ao grupo para: ${notMatched.join(", ")}.`);
-    }
-    if (invalidQuantities.length > 0) {
-      replyParts.push(`⚠️ Quantidade precisa ser um número inteiro para: ${invalidQuantities.join(", ")}.`);
-    }
-    if (notFound.length > 0) {
-      replyParts.push(`⚠️ Insumo não encontrado no cadastro: ${notFound.join(", ")}.`);
-    }
+    const summary = await processConfirmedItems(db, bot, {
+      storeId: activeStore.id,
+      routineId: routine.id,
+      collaboratorTelegramId: pendingCount.collaboratorTelegramId,
+      rawText: pendingCount.rawText,
+      items: pendingCount.parse.items,
+    });
 
-    await ctx.reply(replyParts.join("\n") || "Nada para registrar.");
+    await ctx.reply(formatCountBatchReply(summary));
   });
 
   bot.action(/^correct:(.+)$/, async (ctx) => {

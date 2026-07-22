@@ -15,3 +15,22 @@ export function createAuthorizationMiddleware(groupId: string): MiddlewareFn<Con
     await next();
   };
 }
+
+/**
+ * B3 bot integration: a narrower permission level within the already-authorized group
+ * (D9) — everyone in the group can send counts, but only specific people can trigger
+ * /ingest-xml. Unlike the silent drop above, this replies explicitly: the requester is
+ * already in an authorized chat, so acknowledging the command exists (just not for
+ * them) doesn't leak anything a group member couldn't already see.
+ */
+export function createAdminMiddleware(adminTelegramIds: string[]): MiddlewareFn<Context> {
+  const adminSet = new Set(adminTelegramIds);
+  return async (ctx, next) => {
+    const userId = ctx.from?.id?.toString();
+    if (!userId || !adminSet.has(userId)) {
+      await ctx.reply("Esse comando é restrito a administradores.");
+      return;
+    }
+    await next();
+  };
+}
