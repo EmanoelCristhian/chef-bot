@@ -23,15 +23,13 @@ export type SeedBaselineConfig = z.infer<typeof seedBaselineConfigSchema>;
  * - a full ISO-8601 string with an explicit offset (e.g. `"2026-07-20T23:59:59-03:00"`).
  */
 export const seedBaselineConfig: SeedBaselineConfig = {
-  cutoffAt: "2026-07-20 23:59:59",
+  cutoffAt: "2026-07-21 23:59:59",
   items: [
-    // Placeholder quantities — replace with the real physical stock at cutoff
-    // before relying on expected-value checks for a non-day-one test.
-    { supplyCode: "F", quantity: 0 },
-    { supplyCode: "G", quantity: 0 },
-    { supplyCode: "W", quantity: 0 },
-    { supplyCode: "CHORI", quantity: 0 },
-    { supplyCode: "CHICKEN", quantity: 0 },
-    { supplyCode: "VEGETARIANO", quantity: 0 },
+    { supplyCode: "F", quantity: 948 },
+    { supplyCode: "G", quantity: 1017 },
+    { supplyCode: "W", quantity: 337 },
+    { supplyCode: "CHORI", quantity: 11 },
+    { supplyCode: "CHICKEN", quantity: 346 },
+    { supplyCode: "VEGETARIANO", quantity: 45 },
   ],
 };
