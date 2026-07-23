@@ -2,12 +2,15 @@ import "dotenv/config";
 import { eq } from "drizzle-orm";
 import { createDb } from "src/persistence/db.js";
 import { supply, store, routine } from "src/persistence/schema.js";
+import { parseTelegramGroupId } from "src/domain/telegramGroupId.js";
 
 const STORE_NAME = "Bom Beef 0032";
 const ROUTINE_NAME = "Contagem de Carne";
 
-// Real staging group id, confirmed by Emanoel (2026-07-21).
-const TELEGRAM_GROUP_ID = "5107923619";
+// Real staging group id, confirmed by Emanoel (2026-07-21). Must stay negative:
+// Telegram group chat ids are always negative, and D9 auth does an exact string
+// compare — a missing "-" silently drops every message (see telegramGroupId.ts).
+const TELEGRAM_GROUP_ID = parseTelegramGroupId("-5107923619");
 
 async function main() {
   const databaseUrl = process.env.DATABASE_URL;
@@ -23,6 +26,15 @@ async function main() {
       .values({ name: STORE_NAME, telegramGroupId: TELEGRAM_GROUP_ID, active: true })
       .returning();
     console.log(`Store created: ${storeFound?.id}`);
+  } else if (storeFound.telegramGroupId !== TELEGRAM_GROUP_ID) {
+    // Same idempotent spirit as unitsPerBox below: a wrong group id (missing "-")
+    // silently breaks D9 auth — keep the seeded value in sync on every run.
+    [storeFound] = await db
+      .update(store)
+      .set({ telegramGroupId: TELEGRAM_GROUP_ID })
+      .where(eq(store.id, storeFound.id))
+      .returning();
+    console.log(`Store updated: telegramGroupId -> ${TELEGRAM_GROUP_ID}`);
   } else {
     console.log(`Store already existed: ${storeFound.id}`);
   }

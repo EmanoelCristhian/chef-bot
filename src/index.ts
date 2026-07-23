@@ -7,6 +7,7 @@ import type { LLMParser } from "src/llm/llmParser.js";
 import { createBot } from "src/bot/telegram.js";
 import { registerHandlers } from "src/bot/registerHandlers.js";
 import { createDriveFilesAndContentApi } from "src/salesXml/googleDriveClient.js";
+import { parseTelegramGroupId } from "src/domain/telegramGroupId.js";
 import * as storeRepo from "src/persistence/repositories/storeRepo.js";
 
 async function main() {
@@ -28,7 +29,10 @@ async function main() {
   if (!activeStore) {
     throw new Error("No active store found — run the seed before starting the bot.");
   }
-  const bot = createBot(env.BOT_TOKEN, activeStore.telegramGroupId);
+  // Fail loud at boot if the DB still has a positive/malformed group id — otherwise
+  // D9 auth silently drops every update (exact string compare, no error reply).
+  const telegramGroupId = parseTelegramGroupId(activeStore.telegramGroupId);
+  const bot = createBot(env.BOT_TOKEN, telegramGroupId);
 
   registerHandlers(bot, {
     db,
