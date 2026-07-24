@@ -439,7 +439,7 @@ Responda na thread / PR deste plano; implementação só depois.
 
 ### Como identifica o alvo do `/aceitar`
 
-- [x] **C1** `/aceitar <código|nome>` → última mismatch não aceita (recomendado) ✅ fechado  
+- [x] **C1** evoluiu para `/confirma_contagem` (lista numerada + resposta por número) ✅  
 - [ ] **C2** lista + botões  
 - [ ] **C3** botões no alerta (além do comando?) — fora desta entrega (§11)  
 - [ ] Mistura: C1 agora + C3 depois  
@@ -456,7 +456,7 @@ Responda na thread / PR deste plano; implementação só depois.
 
 ### Mensagem de aceite e números
 
-- [x] Resposta do `/aceitar` cita informado/esperado/diferença (já públicos no grupo) ✅  
+- [x] Resposta do `/confirma_contagem` cita informado/esperado/diferença (já públicos no grupo) ✅  
 - [ ] Só nome do insumo + “aceito como estoque”  
 
 ### Nome da tabela envelope
