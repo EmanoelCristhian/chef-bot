@@ -1,10 +1,7 @@
 /**
- * Status: PLANEJAMENTO — /aceitar + generalização Count → histórico de rotinas.
- * Não implementar até o Emanoel fechar as decisões da §12 (checklist).
- *
- * O PLAN.md anterior (Mezanino/Cozinha + PCT) está fechado e implementado
- * (`feature/count-by-location` / PR #22). Este arquivo **substitui** aquele conteúdo
- * como plano ativo; o desenho antigo permanece no histórico do git.
+ * Status: decisões da §12 FECHADAS; UI de aceite atualizada para `/confirma_contagem`
+ * (lista numerada + resposta por número; substitui `/aceitar <código>`). Envelope
+ * `routine_check` e baseline matched|accepted permanecem. Branch `feature/aceitar-routine-check`.
  */
 
 ---
@@ -431,40 +428,40 @@ Responda na thread / PR deste plano; implementação só depois.
 ### Forma da tabela
 
 - [ ] **G1** substituir/renomear `count` → tabela genérica única  
-- [ ] **G2** envelope `routine_check` + `count` tipado (recomendado)  
+- [x] **G2** envelope `routine_check` + `count` tipado (recomendado) ✅ fechado  
 - [ ] **G3** só aceite em `count`, generalização depois (contra decisão “agora”, só se reabrir escopo)
 
 ### Onde fica o aceite
 
-- [ ] **A** campos no envelope  
+- [x] **A** campos no envelope ✅ fechado  
 - [ ] **B** campos em `count`  
 - [ ] **C** tabela append-only de aceite  
 
 ### Como identifica o alvo do `/aceitar`
 
-- [ ] **C1** `/aceitar <código|nome>` → última mismatch não aceita (recomendado)  
+- [x] **C1** evoluiu para `/confirma_contagem` (lista numerada + resposta por número) ✅  
 - [ ] **C2** lista + botões  
-- [ ] **C3** botões no alerta (além do comando?)  
+- [ ] **C3** botões no alerta (além do comando?) — fora desta entrega (§11)  
 - [ ] Mistura: C1 agora + C3 depois  
 
 ### Papéis / auditoria
 
-- [ ] Aceitador pode ser ≠ autor da contagem? (rec: **sim**)  
-- [ ] Gravar confirmante D1 nesta entrega (**H2**) ou deixar lacuna (**H1**)?  
+- [x] Aceitador pode ser ≠ autor da contagem? (**sim**) ✅  
+- [x] Gravar confirmante D1 nesta entrega (**H2**) ✅  
 
 ### Imutabilidade
 
-- [ ] Update write-once de `accepted_*` no mesmo registro (rec. com G2/A ou B)  
+- [x] Update write-once de `accepted_*` no mesmo registro (rec. com G2/A ou B) ✅  
 - [ ] Append-only (opção C)  
 
 ### Mensagem de aceite e números
 
-- [ ] Resposta do `/aceitar` cita informado/esperado/diferença (já públicos no grupo)  
+- [x] Resposta do `/confirma_contagem` cita informado/esperado/diferença (já públicos no grupo) ✅  
 - [ ] Só nome do insumo + “aceito como estoque”  
 
 ### Nome da tabela envelope
 
-- [ ] `routine_check`  
+- [x] `routine_check` ✅  
 - [ ] `routine_execution`  
 - [ ] `routine_history`  
 - [ ] outro: ________  

@@ -140,7 +140,7 @@ describe("registerHandlers — command vs catch-all order", () => {
 
     // Wrong order relative to registerHandlers — should still work because count.ts
     // now calls next() for command-looking text (defense in depth).
-    registerCountHandler(bot, { llmParser: fakeLlmParser() });
+    registerCountHandler(bot, { llmParser: fakeLlmParser(), db });
     registerIngestXmlCommand(bot, db, {
       adminTelegramIds: [String(ADMIN_ID)],
       driveFiles: emptyDrive(),
