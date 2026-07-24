@@ -1,8 +1,7 @@
 /**
- * Status: decisões da §12 FECHADAS com o Emanoel (2026-07-23) — implementação na
- * branch `feature/aceitar-routine-check`. Este arquivo permanece como registro do
- * desenho; a checklist §12 está resolvida (G2, aceite no envelope, /aceitar C1,
- * baseline matched|accepted, confirmed_by, números na resposta de aceite).
+ * Status: decisões da §12 FECHADAS; UI de aceite atualizada para `/confirma_contagem`
+ * (lista numerada + resposta por número; substitui `/aceitar <código>`). Envelope
+ * `routine_check` e baseline matched|accepted permanecem. Branch `feature/aceitar-routine-check`.
  */
 
 ---

@@ -1,6 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { processCountItem } from "src/domain/count.js";
-import { acceptLatestMismatch } from "src/domain/acceptMismatch.js";
+import { acceptMismatchByRoutineCheckId } from "src/domain/acceptMismatch.js";
 import * as countRepo from "src/persistence/repositories/countRepo.js";
 import * as routineCheckRepo from "src/persistence/repositories/routineCheckRepo.js";
 import {
@@ -22,7 +22,7 @@ afterAll(async () => {
   await resetDatabase(db);
 });
 
-describe("baseline + /aceitar invariants (PLAN §7.2)", () => {
+describe("baseline + /confirma_contagem invariants (PLAN §7.2)", () => {
   it("1. mismatch not accepted does not become baseline (PR #27 / Wagyu)", async () => {
     const testStore = await createTestStore(db);
     const testRoutine = await createTestRoutine(db, testStore.id);
@@ -58,21 +58,11 @@ describe("baseline + /aceitar invariants (PLAN §7.2)", () => {
       confirmedByCollaborator: true,
     });
 
-    const result = await processCountItem(db, {
-      storeId: testStore.id,
-      routineId: testRoutine.id,
-      collaboratorTelegramId: "1",
-      confirmedByTelegramId: "2",
-      rawText: "330 W",
-      llmUsed: "claude",
-      item: testAggregatedItem("W", 330),
-    });
-
-    expect(result.expectedValue).toBe(330);
-    expect(result.matched).toBe(true);
+    const found = await countRepo.findLastConfirmedBySupply(db, supplyW.id);
+    expect(found?.reportedValue).toBe(330);
   });
 
-  it("2. accepted mismatch becomes baseline (F −1 case)", async () => {
+  it("2. accepted mismatch becomes the new baseline", async () => {
     const testStore = await createTestStore(db);
     const testRoutine = await createTestRoutine(db, testStore.id);
     const supplyF = await createTestSupply(db, testStore.id, { code: "F", name: "Burger F" });
@@ -92,7 +82,7 @@ describe("baseline + /aceitar invariants (PLAN §7.2)", () => {
       confirmedByCollaborator: true,
     });
     await new Promise((resolve) => setTimeout(resolve, 5));
-    await countRepo.insert(db, {
+    const mismatch = await countRepo.insert(db, {
       storeId: testStore.id,
       routineId: testRoutine.id,
       supplyId: supplyF.id,
@@ -107,9 +97,8 @@ describe("baseline + /aceitar invariants (PLAN §7.2)", () => {
       confirmedByCollaborator: true,
     });
 
-    const accepted = await acceptLatestMismatch(db, {
-      storeId: testStore.id,
-      supplyToken: "F",
+    const accepted = await acceptMismatchByRoutineCheckId(db, {
+      routineCheckId: mismatch.routineCheckId,
       acceptedByTelegramId: "42",
     });
     expect(accepted.ok).toBe(true);
@@ -173,19 +162,17 @@ describe("baseline + /aceitar invariants (PLAN §7.2)", () => {
       confirmedByCollaborator: true,
     });
 
-    const first = await acceptLatestMismatch(db, {
-      storeId: testStore.id,
-      supplyToken: "F",
+    const first = await acceptMismatchByRoutineCheckId(db, {
+      routineCheckId: mismatch.routineCheckId,
       acceptedByTelegramId: "42",
     });
     expect(first.ok).toBe(true);
 
-    const secondViaDomain = await acceptLatestMismatch(db, {
-      storeId: testStore.id,
-      supplyToken: "F",
+    const secondViaDomain = await acceptMismatchByRoutineCheckId(db, {
+      routineCheckId: mismatch.routineCheckId,
       acceptedByTelegramId: "42",
     });
-    expect(secondViaDomain).toEqual({ ok: false, reason: "already_accepted", supplyToken: "F" });
+    expect(secondViaDomain).toEqual({ ok: false, reason: "already_accepted" });
 
     const secondViaRepo = await routineCheckRepo.acceptIfPending(db, mismatch.routineCheckId, "42");
     expect(secondViaRepo).toBeNull();
@@ -261,15 +248,63 @@ describe("baseline + /aceitar invariants (PLAN §7.2)", () => {
     expect(check?.confirmedByTelegramId).toBe("confirmer-9");
   });
 
-  it("reports nothing_to_accept when there is no pending mismatch", async () => {
+  it("lists all pending mismatches for the store (empty and non-empty)", async () => {
     const testStore = await createTestStore(db);
-    await createTestSupply(db, testStore.id, { code: "F", name: "Burger F" });
+    const testRoutine = await createTestRoutine(db, testStore.id);
+    const supplyF = await createTestSupply(db, testStore.id, { code: "F", name: "Burger F" });
+    const supplyW = await createTestSupply(db, testStore.id, { code: "W", name: "Burger W" });
 
-    const result = await acceptLatestMismatch(db, {
+    expect(await routineCheckRepo.findPendingMismatchesByStore(db, testStore.id)).toEqual([]);
+
+    await countRepo.insert(db, {
       storeId: testStore.id,
-      supplyToken: "F",
-      acceptedByTelegramId: "1",
+      routineId: testRoutine.id,
+      supplyId: supplyF.id,
+      collaboratorTelegramId: "1",
+      confirmedByTelegramId: "1",
+      rawText: "99 F",
+      reportedValue: 99,
+      actualQuantityReported: null,
+      locationBreakdown: null,
+      expectedValue: 100,
+      matched: false,
+      confirmedByCollaborator: true,
     });
-    expect(result).toEqual({ ok: false, reason: "nothing_to_accept", supplyToken: "F" });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await countRepo.insert(db, {
+      storeId: testStore.id,
+      routineId: testRoutine.id,
+      supplyId: supplyW.id,
+      collaboratorTelegramId: "1",
+      confirmedByTelegramId: "1",
+      rawText: "300 W",
+      reportedValue: 300,
+      actualQuantityReported: null,
+      locationBreakdown: null,
+      expectedValue: 330,
+      matched: false,
+      confirmedByCollaborator: true,
+    });
+    // matched must not appear
+    await countRepo.insert(db, {
+      storeId: testStore.id,
+      routineId: testRoutine.id,
+      supplyId: supplyF.id,
+      collaboratorTelegramId: "1",
+      confirmedByTelegramId: "1",
+      rawText: "100 F",
+      reportedValue: 100,
+      actualQuantityReported: null,
+      locationBreakdown: null,
+      expectedValue: 100,
+      matched: true,
+      confirmedByCollaborator: true,
+    });
+
+    const pending = await routineCheckRepo.findPendingMismatchesByStore(db, testStore.id);
+    expect(pending).toHaveLength(2);
+    expect(pending.map((p) => p.supplyCode)).toEqual(["F", "W"]);
+    expect(pending[0]?.difference).toBe(-1);
+    expect(pending[1]?.difference).toBe(-30);
   });
 });

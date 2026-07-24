@@ -115,7 +115,7 @@ describe("bot flow (message -> parse -> confirmation -> comparison -> response/a
 
     const bot = createBot("fake-token", "555");
     const calls = stubTelegramApi();
-    registerCountHandler(bot, { llmParser: fakeLlmParser("G", 100) });
+    registerCountHandler(bot, { llmParser: fakeLlmParser("G", 100), db });
     registerConfirmationHandler(bot, db);
 
     await bot.handleUpdate(textMessageUpdate("100 G", 555));
@@ -173,7 +173,7 @@ describe("bot flow (message -> parse -> confirmation -> comparison -> response/a
         provider: "claude",
       }),
     };
-    registerCountHandler(bot, { llmParser: multiParser });
+    registerCountHandler(bot, { llmParser: multiParser, db });
     registerConfirmationHandler(bot, db);
 
     await bot.handleUpdate(textMessageUpdate("50 G / 12 W", 555));
@@ -204,7 +204,7 @@ describe("bot flow (message -> parse -> confirmation -> comparison -> response/a
 
     const bot = createBot("fake-token", "555");
     const calls = stubTelegramApi();
-    registerCountHandler(bot, { llmParser: fakeLlmParser("W", 10) });
+    registerCountHandler(bot, { llmParser: fakeLlmParser("W", 10), db });
     registerConfirmationHandler(bot, db);
 
     await bot.handleUpdate(textMessageUpdate("10 W", 555));
@@ -230,7 +230,7 @@ describe("bot flow (message -> parse -> confirmation -> comparison -> response/a
 
     const bot = createBot("fake-token", "555");
     const calls = stubTelegramApi();
-    registerCountHandler(bot, { llmParser: fakeLlmParser("CHORI", 10) });
+    registerCountHandler(bot, { llmParser: fakeLlmParser("CHORI", 10), db });
     registerConfirmationHandler(bot, db);
 
     await bot.handleUpdate(textMessageUpdate("10 CHORI", 555));

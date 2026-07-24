@@ -89,7 +89,7 @@ RoutineCheck {
   status: enum ["matched", "mismatched", "accepted"]
   collaborator_telegram_id: string      // quem enviou a mensagem
   confirmed_by_telegram_id: string | null  // quem clicou Confirmar (D1)
-  accepted_by_telegram_id / accepted_at    // /aceitar — write-once
+  accepted_by_telegram_id / accepted_at    // /confirma_contagem — write-once
   raw_text, llm_used, payload jsonb?, created_at
 }
 
@@ -143,10 +143,10 @@ Todas as 5 decisões confirmadas nas opções originalmente assumidas — sem aj
 ## 6. Regras de negócio centrais
 
 1. `valor_esperado = recebimento + contagem_anterior − vendas − desperdicio`, calculado por Insumo, com base nos registros de `HistoricoMovimento` desde a última contagem **elegível como baseline** (matched ou aceita).
-2. O `valor_esperado` aparece no **alerta consolidado do grupo** e na resposta de `/aceitar` (amendido 2026-07-23; a regra antiga de “nunca expor” foi revogada nesses canais). Não espalhar esperado em outros fluxos sem decisão explícita.
+2. O `valor_esperado` aparece no **alerta consolidado do grupo** e no fluxo `/confirma_contagem` (lista + resposta de aceite) (amendido 2026-07-23; a regra antiga de “nunca expor” foi revogada nesses canais). Não espalhar esperado em outros fluxos sem decisão explícita.
 3. Toda contagem gera um registro imutável de valores (`texto_bruto` preservado) — nunca sobrescrever valores; aceite só preenche `accepted_*` no envelope (write-once).
 4. Bot só processa mensagens do grupo configurado da loja (D9 — `store.telegram_group_id`).
-5. `/aceitar <código|nome>`: qualquer membro do grupo pode aceitar a última divergência não aceita daquele insumo como estoque real (sem permissão de admin).
+5. `/confirma_contagem`: lista mismatches pendentes (`status=mismatched` e `accepted_at` nulo) da loja ativa; o colaborador responde com o número da linha para aceitar como estoque real (sem permissão de admin). Seleção persistida por chat (`pending_mismatch_selection`), TTL 15 min, consumida no aceite ou substituída por nova contagem em texto livre.
 
 ## 7. Arquivos e módulos principais (sugestão de estrutura)
 

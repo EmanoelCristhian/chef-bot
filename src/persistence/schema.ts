@@ -117,7 +117,7 @@ export const routineCheck = pgTable("routine_check", {
   collaboratorTelegramId: text("collaborator_telegram_id").notNull(),
   /** Who clicked D1 "Confirmar". Null on backfilled / seed-manual rows. */
   confirmedByTelegramId: text("confirmed_by_telegram_id"),
-  /** Who ran /aceitar on a mismatch. Write-once with acceptedAt. */
+  /** Who confirmed a mismatch via /confirma_contagem. Write-once with acceptedAt. */
   acceptedByTelegramId: text("accepted_by_telegram_id"),
   acceptedAt: timestamp("accepted_at", { withTimezone: true }),
   rawText: text("raw_text").notNull(),
@@ -276,6 +276,27 @@ export const dailyIngestionRun = pgTable(
   },
   (table) => [unique().on(table.storeId, table.date, table.type)],
 );
+
+/**
+ * Active numbered list from `/confirma_contagem` for a Telegram chat.
+ * One row per chat (upsert). Survives bot restart (unlike in-memory pendingCounts).
+ *
+ * Expiry (documented product rule):
+ * - TTL 15 minutes from `created_at`
+ * - Deleted after a successful number pick (consumed)
+ * - Deleted when a free-text count enters the D1 pending flow (new count supersedes)
+ * - Replaced when `/confirma_contagem` is run again for the same chat
+ */
+export const pendingMismatchSelection = pgTable("pending_mismatch_selection", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  chatId: text("chat_id").notNull().unique(),
+  storeId: uuid("store_id")
+    .notNull()
+    .references(() => store.id),
+  /** Ordered routine_check ids as shown in the numbered Telegram list (1-based index). */
+  routineCheckIds: jsonb("routine_check_ids").$type<string[]>().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
 // B3 bot integration: a confirmed count whose date's XML hasn't been ingested yet
 // (dailyIngestionRun has no row for it) is parked here instead of becoming a Count

@@ -63,7 +63,7 @@ export async function insert(db: Db, data: NewCount) {
 
 /**
  * Baseline for the next expected-value calculation: last collaborator-confirmed count
- * that matched OR whose routine_check was accepted (/aceitar). A confirmed-but-
+ * that matched OR whose routine_check was accepted (/confirma_contagem). A confirmed-but-
  * mismatched recount that was NOT accepted must not become the previous count
  * (PR #27). Seed baselines insert matched=true.
  */

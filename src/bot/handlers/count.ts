@@ -1,13 +1,16 @@
 import type { Context, Telegraf } from "telegraf";
 import { message } from "telegraf/filters";
 import type { LLMParser } from "src/llm/llmParser.js";
+import type { Db } from "src/persistence/db.js";
 import { parseCountText } from "src/bot/parse.js";
 import { storePending } from "src/bot/pendingCounts.js";
 import { aggregateParsedCount } from "src/domain/aggregateParsedCount.js";
 import { formatCountConfirmationSummary } from "src/bot/formatCountConfirmation.js";
+import * as pendingMismatchSelectionRepo from "src/persistence/repositories/pendingMismatchSelectionRepo.js";
 
 export interface CountHandlerDeps {
   llmParser: LLMParser;
+  db: Db;
 }
 
 /**
@@ -44,6 +47,9 @@ export function registerCountHandler(bot: Telegraf<Context>, deps: CountHandlerD
       );
       return;
     }
+
+    // A new free-text count supersedes any open /confirma_contagem selection for this chat.
+    await pendingMismatchSelectionRepo.deleteByChatId(deps.db, String(ctx.chat.id));
 
     const id = storePending({
       chatId: ctx.chat.id,
